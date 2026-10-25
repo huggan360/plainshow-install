@@ -1,0 +1,27 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/*
+ * PlainShow installer, second stage. Start it with install.sh, which sets up
+ * PHP for this Linux first.
+ *
+ *   plainshow-install                       ask the questions and install
+ *   plainshow-install --answers=file.json   install from answers in a file
+ */
+require dirname(__DIR__).'/vendor/autoload.php';
+
+if (posix_geteuid() !== 0) {
+    fwrite(STDERR, "Run the installer as root.\n");
+    exit(1);
+}
+
+$options = getopt('', ['answers:']);
+try {
+    exit((new PlainShow\Install\Installer($options))->run());
+} catch (Throwable $error) {
+    PlainShow\Install\Shell::log('FAILED: '.$error->getMessage());
+    fwrite(STDERR, 'Error: '.$error->getMessage()."\n");
+    exit(1);
+}

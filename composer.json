@@ -1,0 +1,18 @@
+{
+    "name": "plainshow/install",
+    "description": "Interactive installer for PlainShow on Linux.",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.4",
+        "laravel/prompts": "^0.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "PlainShow\\Install\\": "src/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
