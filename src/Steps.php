@@ -862,7 +862,8 @@ final class Steps
         $info = Assistant::MODELS[$model];
         $file = "$dir/models/{$info['file']}";
         if (! is_file($file) || hash_file('sha256', $file) !== $info['sha256']) {
-            Shell::run(['curl', '-fL', '--retry', '3', '-o', "$file.part", $info['url']], timeout: 7200);
+            // Every error is retried (a TLS handshake that fails once is common), and a broken download goes on where it stopped.
+            Shell::run(['curl', '-fL', '--retry', '8', '--retry-all-errors', '--retry-delay', '10', '-C', '-', '-o', "$file.part", $info['url']], timeout: 7200);
             if (hash_file('sha256', "$file.part") !== $info['sha256']) {
                 @unlink("$file.part");
                 throw new RuntimeException('The Assistant\'s model did not download whole. Run the installer again to retry.');
