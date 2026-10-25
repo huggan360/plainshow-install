@@ -268,7 +268,8 @@ final class Steps
                 }
             }
         }
-        $ini .= "opcache.enable=1\nopcache.interned_strings_buffer=32\nopcache.max_accelerated_files=20000\nopcache.memory_consumption=256\nopcache.save_comments=1\nopcache.revalidate_freq=60\napc.enable_cli=1\n";
+        // Command line PHP (Updates, Cloud's background jobs) needs more than some distributions' 128 MB; the pools set their own.
+        $ini .= "memory_limit=1G\nopcache.enable=1\nopcache.interned_strings_buffer=32\nopcache.max_accelerated_files=20000\nopcache.memory_consumption=256\nopcache.save_comments=1\nopcache.revalidate_freq=60\napc.enable_cli=1\n";
         $dirs = match ($this->distro->family) {
             'debian' => ["/etc/php/{$this->distro->php}/fpm/conf.d", "/etc/php/{$this->distro->php}/cli/conf.d"],
             'fedora' => ['/etc/php.d'],
@@ -486,6 +487,12 @@ final class Steps
         $this->mkdir(self::SRV.'/errors', 'root', 'root', 0755);
         $this->mkdir(self::SRV.'/updating', self::DEPLOY_USER, self::DEPLOY_USER, 0755);
 
+        // Fedora's mod_ssl makes its localhost certificate on Apache's first start; configtest needs it before.
+        if ($distro->family === 'fedora' && ! is_file('/etc/pki/tls/certs/localhost.crt')) {
+            Shell::run(['openssl', 'req', '-x509', '-nodes', '-newkey', 'rsa:2048', '-days', '3650', '-subj', '/CN=localhost',
+                '-keyout', '/etc/pki/tls/private/localhost.key', '-out', '/etc/pki/tls/certs/localhost.crt']);
+            chmod('/etc/pki/tls/private/localhost.key', 0600);
+        }
         // Arch's Apache has no Listen 443 of its own; the others bring it with mod_ssl.
         Shell::write(Templates::APACHE_DIR.'/00-plainshow.conf', Templates::apacheBase($distro, $distro->family === 'arch'));
         Shell::write($distro->apacheIncludeFile(), Templates::header('include PlainShow\'s Apache files').'IncludeOptional '.Templates::APACHE_DIR."/*.conf\n");
@@ -806,7 +813,7 @@ final class Steps
 
     private function occ(array $arguments, array $env = []): string
     {
-        return Shell::run([$this->php(), 'occ', '--no-interaction', ...$arguments], self::SRV.'/cloud', ['HOME' => '/tmp', 'PATH' => '/usr/local/bin:/usr/bin:/bin'] + $env, null, $this->webUser());
+        return Shell::run([$this->php(), '-d', 'memory_limit=1G', 'occ', '--no-interaction', ...$arguments], self::SRV.'/cloud', ['HOME' => '/tmp', 'PATH' => '/usr/local/bin:/usr/bin:/bin'] + $env, null, $this->webUser());
     }
 
     private function cloud(): void
@@ -904,11 +911,11 @@ final class Steps
         $this->systemctl('enable', 'notify_push');
         $this->systemctl('restart', 'notify_push');
         sleep(2);
-        Shell::ok([$this->php(), 'occ', 'notify_push:setup', "https://$host/push"], "$dir", $web);
+        Shell::ok([$this->php(), '-d', 'memory_limit=1G', 'occ', 'notify_push:setup', "https://$host/push"], "$dir", $web);
 
         // Cloud accounts follow the dashboard's: core asks a small root helper to create and disable them.
         $core = self::SRV.'/core/current/ops';
-        Shell::run(['install', '-o', 'root', '-g', 'root', '-m', '0755', "$core/account-helper.py", '/usr/local/libexec/plainshow-account-helper']);
+        Shell::run(['install', '-D', '-o', 'root', '-g', 'root', '-m', '0755', "$core/account-helper.py", '/usr/local/libexec/plainshow-account-helper']);
         Shell::write('/etc/sudoers.d/92-plainshow-account-helper', (string) file_get_contents("$core/account-helper.sudoers"), 0440);
         Shell::run(['visudo', '-cf', '/etc/sudoers.d/92-plainshow-account-helper']);
     }
@@ -916,11 +923,11 @@ final class Steps
     /** The first admin is Cloud's admin too: the account exists before the first sign-in and joins the admin group. */
     private function cloudAdmin(string $username): void
     {
-        $exists = Shell::ok([$this->php(), 'occ', 'user:info', $username], self::SRV.'/cloud', $this->webUser());
+        $exists = Shell::ok([$this->php(), '-d', 'memory_limit=1G', 'occ', 'user:info', $username], self::SRV.'/cloud', $this->webUser());
         if (! $exists) {
-            Shell::run([$this->php(), 'occ', '--no-interaction', 'user:add', '--password-from-env', $username], self::SRV.'/cloud', ['OC_PASS' => Shell::secret(40), 'HOME' => '/tmp'], null, $this->webUser());
+            Shell::run([$this->php(), '-d', 'memory_limit=1G', 'occ', '--no-interaction', 'user:add', '--password-from-env', $username], self::SRV.'/cloud', ['OC_PASS' => Shell::secret(40), 'HOME' => '/tmp'], null, $this->webUser());
         }
-        Shell::ok([$this->php(), 'occ', 'group:adduser', 'admin', $username], self::SRV.'/cloud', $this->webUser());
+        Shell::ok([$this->php(), '-d', 'memory_limit=1G', 'occ', 'group:adduser', 'admin', $username], self::SRV.'/cloud', $this->webUser());
     }
 
     /* ---------- Background jobs and checks ---------- */
