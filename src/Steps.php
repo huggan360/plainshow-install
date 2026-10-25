@@ -557,6 +557,8 @@ final class Steps
             $extra = match ($app) {
                 'latex' => "ProxyPreserveHost On\nProxyPass \"/ws\" \"ws://127.0.0.1:8080/\" retry=0 timeout=60\nProxyPassReverse \"/ws\" \"ws://127.0.0.1:8080/\"",
                 'cloud' => "ProxyPreserveHost On\nRequestHeader set X-Forwarded-Proto \"https\"\nProxyPass /push/ws ws://127.0.0.1:7867/ws\nProxyPass /push/ http://127.0.0.1:7867/\nProxyPassReverse /push/ http://127.0.0.1:7867/",
+                // The Assistant streams its progress line by line: passed on at once, uncompressed.
+                'core' => "<Proxy \"fcgi://plainshow-core\">\n    ProxySet flushpackets=on\n</Proxy>\nSetEnvIf Request_URI \"^/assistant/ask$\" no-gzip=1",
                 default => '',
             };
             Shell::write(Templates::APACHE_DIR."/site-$app.conf", Templates::site($app, $this->host($app), $root, $app, $this->distro->socketDir(), $this->distro->apacheLogDir(), $certificate, $extra));
