@@ -1,0 +1,31 @@
+# Installs PlainShow from scratch on each Linux in a systemd container, then signs in
+# to every app as the new administrator. Runs on every push, once a week (to catch
+# changes in the distributions and in the apps' newest releases) and by hand.
+name: Install
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 4 * * 1'
+
+jobs:
+  install:
+    name: ${{ matrix.distro }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [debian, ubuntu, fedora, arch, cachyos]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PlainShow
+        run: tests/docker/run.sh ${{ matrix.distro }}
+      - name: Sign in to every app
+        run: tests/docker/signin.sh ${{ matrix.distro }}
+      - name: Show the install log
+        if: failure()
+        run: docker exec plainshow-test-${{ matrix.distro }} tail -n 300 /var/log/plainshow-install.log || true

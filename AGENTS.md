@@ -19,7 +19,9 @@ everything about the server from `/etc/plainshow/platform.json` (kit
   the Apache sites, PHP-FPM pools and systemd units; `src/State.php` the
   answers, secrets and finished steps (`/etc/plainshow/install/state.json`).
 - `tests/docker/`: `run.sh <distro>` installs into a fresh systemd container
-  from this checkout with `answers.json` (self-signed certificates).
+  from this checkout with `answers.json` (self-signed certificates);
+  `signin.sh <distro>` signs in like a browser and opens every app;
+  `resume.sh <distro>` runs the installer again in the same container.
 
 ## Rules
 
@@ -40,5 +42,7 @@ everything about the server from `/etc/plainshow/platform.json` (kit
 - Semver tags `vX.Y.Z`, a `## vX.Y.Z` section at the top of `CHANGELOG.md`,
   `git tag -a vX.Y.Z -m vX.Y.Z`, `git push origin HEAD vX.Y.Z`. `install.sh`
   is served from `main` but runs the newest tag of the installer.
-- Test with `tests/docker/run.sh debian` (and other families when their code
-  changed) before tagging.
+- GitHub Actions (`.github/workflows/install.yml`) installs from scratch on Debian,
+  Ubuntu, Fedora, Arch and CachyOS and signs in to every app, on every push and
+  weekly. Tag only when it is green. Locally: `tests/docker/run.sh <distro>`, then
+  `tests/docker/signin.sh <distro>` (arm64 hosts: debian, ubuntu, fedora).
