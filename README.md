@@ -7,9 +7,10 @@ after that the dashboard's **Updates** page keeps them current.
 
 ## Before you start
 
-- A server with a fresh Linux: Debian 12 or 13, Ubuntu 22.04 or newer,
-  Fedora, Rocky or AlmaLinux 9 or newer, Arch, or openSUSE Tumbleweed. 64-bit
-  Intel/AMD or ARM (a Raspberry Pi 4 or 5 works), 4 GB of memory, 20 GB free.
+- A server with a fresh Linux. Tested on every change: Debian 13, Ubuntu 24.04,
+  Fedora 42, Arch and CachyOS. Rocky, AlmaLinux and openSUSE Tumbleweed should
+  work but are not tested yet. 64-bit Intel/AMD or ARM (a Raspberry Pi 4 or 5
+  works), 4 GB of memory, 20 GB free.
 - A domain. Point it and these subdomains at the server (DNS A or AAAA
   records): `login.`, and `cloud.`, `latex.`, `blog.`, `split.` for the apps
   you want. You can choose other addresses during the install.
