@@ -16,7 +16,10 @@ everything about the server from `/etc/plainshow/platform.json` (kit
   questions (Laravel Prompts) and runs the steps; `src/Steps.php` is the
   installation, one idempotent step per method; `src/Distro.php` holds what
   differs per family (packages, services, users, paths); `src/Templates.php`
-  the Apache sites, PHP-FPM pools and systemd units; `src/State.php` the
+  the Apache sites, PHP-FPM pools and systemd units; `src/Assistant.php` the
+  Assistant's model (llama.cpp built here at a pinned commit for this CPU, with
+  CUDA or Vulkan when there is a graphics card; the model by memory, checked by
+  checksum; socket-activated units at the lowest priority); `src/State.php` the
   answers, secrets and finished steps (`/etc/plainshow/install/state.json`).
 - `tests/docker/`: `run.sh <distro>` installs into a fresh systemd container
   from this checkout with `answers.json` (self-signed certificates);

@@ -69,6 +69,9 @@ final class Steps
                 $steps[$app] = "Installing $label";
             }
         }
+        if ($this->answer('assistant')) {
+            $steps['assistant'] = 'Installing the Assistant (building its model\'s server for this machine, downloading the model)';
+        }
         $steps['grants'] = 'Connecting the apps\' databases';
         $steps['admin'] = 'Creating your administrator account';
         $steps['updates'] = 'Turning on automatic updates and background jobs';
@@ -94,6 +97,7 @@ final class Steps
             'blog' => $this->blog(),
             'latex' => $this->latex(),
             'cloud' => $this->cloud(),
+            'assistant' => $this->assistant(),
             'grants' => $this->grants(),
             'admin' => $this->admin(),
             'updates' => $this->updates(),
@@ -432,6 +436,8 @@ final class Steps
                 'latex_dir' => self::SRV.'/latex',
                 'latex_websocket' => 'systemd',
                 'blog_uploads' => self::SRV.'/blog-uploads',
+                // Core shows the Assistant only where its model is installed.
+                'assistant' => $this->answer('assistant') ? 'on' : 'off',
             ],
         ];
         Shell::write(self::PLATFORM, json_encode($platform, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n", 0644);
@@ -811,6 +817,77 @@ final class Steps
         $this->systemctl('daemon-reload');
         $this->systemctl('enable', 'plainshow-latex-websocket');
         $this->systemctl('restart', 'plainshow-latex-websocket');
+    }
+
+    /**
+     * The Assistant's model: llama.cpp built here for this processor (and its
+     * graphics card, when it has one), the model that fits the memory, and
+     * the units that start it on demand at the lowest priority (Assistant).
+     */
+    private function assistant(): void
+    {
+        $model = Assistant::model() ?? throw new RuntimeException('This server has too little memory for the Assistant (it needs at least 3 GB).');
+        $backend = Assistant::backend();
+        $threads = Assistant::threads();
+        Shell::log("assistant: model $model, build $backend, $threads threads, ".Assistant::memoryGb().' GB');
+        $this->install(Assistant::packages($this->distro, $backend));
+        if (! posix_getpwnam(Assistant::USER)) {
+            $nologin = is_file('/usr/sbin/nologin') ? '/usr/sbin/nologin' : '/sbin/nologin';
+            Shell::run(['useradd', '--system', '--no-create-home', '--home-dir', '/nonexistent', '--shell', $nologin, '--comment', 'PlainShow Assistant model', Assistant::USER]);
+        }
+        $dir = Assistant::DIR;
+        foreach ([$dir, "$dir/bin", "$dir/models"] as $path) {
+            $this->mkdir($path, 'root', 'root', 0755);
+        }
+
+        // llama.cpp at the tested commit, built once per commit and hardware.
+        $stamp = Assistant::LLAMA_COMMIT." $backend";
+        if (trim((string) @file_get_contents("$dir/bin/.build")) !== $stamp || ! is_file("$dir/bin/llama-server")) {
+            $src = "$dir/src";
+            if (! is_dir("$src/.git")) {
+                Shell::run(['git', 'init', '-q', $src]);
+            }
+            Shell::run(['git', '-C', $src, 'fetch', '-q', '--depth', '1', Assistant::LLAMA_REPO, Assistant::LLAMA_COMMIT], timeout: 1800);
+            Shell::run(['git', '-C', $src, 'checkout', '-q', '--force', 'FETCH_HEAD']);
+            Shell::run(['rm', '-rf', "$src/build"]);
+            Shell::run(['cmake', '-S', $src, '-B', "$src/build", ...Assistant::cmakeOptions($backend)], timeout: 1800);
+            // Compiling takes about a gigabyte per job: no more jobs than the memory allows.
+            $jobs = (string) max(1, min($threads, intdiv(Assistant::memoryGb(), 2)));
+            Shell::run(['cmake', '--build', "$src/build", '--config', 'Release', '-j', $jobs, '--target', 'llama-server'], timeout: 10800);
+            Shell::run(['sh', '-c', 'cp -a "$1"/build/bin/llama-server "$2"/ && find "$1"/build/bin -maxdepth 1 -name "*.so*" -exec cp -a {} "$2"/ \\;', 'sh', $src, "$dir/bin"]);
+            Shell::write("$dir/bin/.build", "$stamp\n");
+        }
+
+        // The model, checked against its known checksum.
+        $info = Assistant::MODELS[$model];
+        $file = "$dir/models/{$info['file']}";
+        if (! is_file($file) || hash_file('sha256', $file) !== $info['sha256']) {
+            Shell::run(['curl', '-fL', '--retry', '3', '-o', "$file.part", $info['url']], timeout: 7200);
+            if (hash_file('sha256', "$file.part") !== $info['sha256']) {
+                @unlink("$file.part");
+                throw new RuntimeException('The Assistant\'s model did not download whole. Run the installer again to retry.');
+            }
+            rename("$file.part", $file);
+            chmod($file, 0644);
+        }
+
+        foreach (Assistant::units($model, $backend, $threads) as $name => $unit) {
+            Shell::write("/etc/systemd/system/$name", $unit);
+        }
+        $this->systemctl('daemon-reload');
+        // A running model would keep the old settings until it stops.
+        Shell::ok(['systemctl', 'stop', 'plainshow-ai.service']);
+        $this->systemctl('enable', '--now', 'plainshow-ai-proxy.socket');
+
+        // It answers: the first call loads the model, as core's first request will.
+        $curl = curl_init('http://127.0.0.1:18090/health');
+        curl_setopt_array($curl, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 600]);
+        curl_exec($curl);
+        $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+        if ($status !== 200) {
+            throw new RuntimeException("The Assistant's model did not start (health $status). See: journalctl -u plainshow-ai.service");
+        }
     }
 
     private function occ(array $arguments, array $env = []): string

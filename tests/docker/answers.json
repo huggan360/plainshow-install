@@ -1,7 +1,19 @@
 {
     "domain": "plainshow.test",
-    "apps": ["cloud", "latex", "blog", "split"],
+    "apps": [
+        "cloud",
+        "latex",
+        "blog",
+        "split"
+    ],
     "tls": "selfsigned",
     "tex": "basic",
-    "admin": {"username": "friend", "first": "Test", "last": "Friend", "email": "friend@plainshow.test", "password": "a-test-password-1"}
+    "admin": {
+        "username": "friend",
+        "first": "Test",
+        "last": "Friend",
+        "email": "friend@plainshow.test",
+        "password": "a-test-password-1"
+    },
+    "assistant": true
 }

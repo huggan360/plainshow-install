@@ -157,6 +157,19 @@ final class Installer
             $this->checkDns($hosts);
         }
 
+        // The Assistant: a language model on this server. Offered when the memory allows it.
+        $model = Assistant::model();
+        if ($model === null) {
+            warning('This server has '.Assistant::memoryGb().' GB of memory, too little for the Assistant (it needs 3 GB). It is left out.');
+        }
+        $assistant = $model !== null && confirm(
+            label: 'Install the Assistant?',
+            default: true,
+            hint: 'Tell the dashboard what to do ("add a meeting on friday at 10"). Its language model runs on this server, built for its processor'
+                .(Assistant::backend() === 'cpu' ? '' : ' and graphics card').': '.($model === '1.7b' ? 'about 3 GB of memory and 2 GB of disk' : 'about 1.5 GB of memory and 1 GB of disk (a smaller model, for this server\'s memory)')
+                .' while it works; it unloads after 30 quiet minutes.',
+        );
+
         $tex = in_array('latex', $apps, true) ? select(
             label: 'How much of TeX Live should LaTeX have?',
             options: ['basic' => 'The basics (about 500 MB)', 'medium' => 'The common packages and fonts (about 2 GB)', 'full' => 'Everything (about 6 GB)'],
@@ -177,12 +190,13 @@ final class Installer
                 validate: fn ($value) => trim($value) === '' || filter_var(trim($value), FILTER_VALIDATE_EMAIL) ? null : 'Enter an e-mail address, or leave it empty.',
             )) ?: null,
         ];
-        $answers = $this->askPassword(['domain' => $domain, 'apps' => array_values($apps), 'hosts' => $hosts, 'tls' => $tls, 'email' => $email, 'tex' => $tex, 'admin' => $admin]);
+        $answers = $this->askPassword(['domain' => $domain, 'apps' => array_values($apps), 'hosts' => $hosts, 'tls' => $tls, 'email' => $email, 'tex' => $tex, 'assistant' => $assistant, 'admin' => $admin]);
 
         table(['', ''], [
             ['Domain', $domain],
             ['Apps', implode(', ', array_map([Apps::class, 'name'], ['core', 'login', ...$apps]))],
             ['Certificates', $tls === 'letsencrypt' ? "Let's Encrypt ($email)" : 'Self-signed'],
+            ['Assistant', $assistant ? 'Yes' : 'No'],
             ['Administrator', $admin['username']],
         ]);
         if (! confirm('Install PlainShow now?', true)) {
@@ -223,6 +237,8 @@ final class Installer
         }
         $answers['tls'] = ($answers['tls'] ?? 'letsencrypt') === 'selfsigned' ? 'selfsigned' : 'letsencrypt';
         $answers['tex'] ??= 'medium';
+        // Answer files leave the Assistant out unless they ask for it (it builds for a while and downloads a model).
+        $answers['assistant'] = (bool) ($answers['assistant'] ?? false) && Assistant::model() !== null;
 
         return $answers;
     }
