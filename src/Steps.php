@@ -262,6 +262,8 @@ final class Steps
     {
         $ini = "; Written by plainshow-install.\n";
         if ($this->distro->family === 'arch') {
+            // install.sh turned a few on for itself; they are all here now, once.
+            @unlink('/etc/php/conf.d/00-plainshow-installer.ini');
             foreach (['bcmath', 'bz2', 'exif', 'gd', 'gmp', 'iconv', 'intl', 'mysqli', 'pdo_mysql', 'sodium', 'zip', 'apcu', 'igbinary', 'redis', 'imagick', 'sysvsem', 'pdo_sqlite', 'sqlite3'] as $extension) {
                 if (is_file("/usr/lib/php/modules/$extension.so")) {
                     $ini .= "extension=$extension\n";
@@ -357,7 +359,7 @@ final class Steps
         }
         $php = $this->php();
         $sudoers = "# PlainShow: what Updates (the plainshow user) may do as root and as the web server. Written by plainshow-install.\n"
-            ."Defaults:".self::DEPLOY_USER." !requiretty\n"
+            ."Defaults:".self::DEPLOY_USER." !requiretty, !pam_acct_mgmt\n"
             .self::DEPLOY_USER.' ALL=(root) NOPASSWD: '.implode(', ', array_unique($commands))."\n"
             .self::DEPLOY_USER.' ALL=('.$this->webUser().') NOPASSWD: '.implode(', ', array_unique([$php, '/usr/bin/php']))."\n";
         Shell::write('/etc/sudoers.d/90-plainshow', $sudoers, 0440);

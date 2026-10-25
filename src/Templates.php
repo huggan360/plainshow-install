@@ -34,6 +34,8 @@ final class Templates
         }
         $out .= "SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1\nSSLHonorCipherOrder off\nSSLSessionTickets off\n";
         $out .= "ServerTokens Prod\nServerSignature Off\n";
+        // Arch's Apache only looks for index.html.
+        $out .= "<IfModule dir_module>\n    DirectoryIndex index.php index.html\n</IfModule>\n";
 
         return $out;
     }
